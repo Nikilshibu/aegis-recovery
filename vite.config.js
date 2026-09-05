@@ -64,6 +64,7 @@ function resendApiPlugin() {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [react(), resendApiPlugin()],
   server: {
     port: 3000,

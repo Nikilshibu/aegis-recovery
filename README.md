@@ -1,7 +1,7 @@
 # AegisRecover | Autonomous AI Revenue & Capital Recovery Engine
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-aegis--recovery.vercel.app-10b981?style=for-the-badge&logo=vercel&logoColor=white)](https://aegis-recovery.vercel.app)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Nikilshibu%2Faegis--recovery-0ea5e9?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Nikilshibu/aegis-recovery)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Deploy-22c55e?style=for-the-badge&logo=github&logoColor=white)](https://nikilshibu.github.io/aegis-recovery/)
 [![React](https://img.shields.io/badge/React-18.3-61dafb?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5.4-646cff?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -9,13 +9,13 @@
 
 ---
 
-## 🌐 Live Deployment
+## 🌐 Live Deployments
 
-| Resource | URL |
-| :--- | :--- |
-| **🚀 Production URL** | **[https://aegis-recovery.vercel.app](https://aegis-recovery.vercel.app)** |
-| **📦 GitHub Repository** | **[https://github.com/Nikilshibu/aegis-recovery](https://github.com/Nikilshibu/aegis-recovery)** |
-| **⚡ Status** | **Operational • High-Availability Global CDN** |
+| Target | URL | Status |
+| :--- | :--- | :--- |
+| **🚀 GitHub Pages** | **[https://nikilshibu.github.io/aegis-recovery/](https://nikilshibu.github.io/aegis-recovery/)** | Automated via GitHub Actions CI/CD |
+| **⚡ Vercel** | **[Import on Vercel](https://vercel.com/new)** *(Deploy from your GitHub repo to get your custom `.vercel.app` domain)* | Configured via `vercel.json` |
+| **📦 Source Code** | **[https://github.com/Nikilshibu/aegis-recovery](https://github.com/Nikilshibu/aegis-recovery)** | Up-to-date on `main` |
 
 ---
 
