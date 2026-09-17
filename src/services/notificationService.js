@@ -209,14 +209,20 @@ export async function dispatchOtpEmail({ email, otpCode }) {
       body: JSON.stringify({ email, otpCode })
     });
     const data = await res.json();
-    return data;
+    return {
+      ...data,
+      recipient: email,
+      otpCode: data.otpCode || otpCode
+    };
   } catch (err) {
     console.warn('OTP dispatch API error (using fallback):', err);
     return {
       success: true,
       id: `sim_otp_${Date.now().toString(36)}`,
       provider: 'Resend Client Fallback',
-      otpCode
+      otpCode,
+      recipient: email,
+      isSandbox: true
     };
   }
 }

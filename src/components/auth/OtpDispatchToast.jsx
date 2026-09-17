@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, CheckCircle2, X, Wifi, Server } from 'lucide-react';
+import { Mail, CheckCircle2, X, Wifi, Server, KeyRound, Sparkles } from 'lucide-react';
 
 /**
- * OtpDispatchToast — Slides in from the top of the screen the moment a new user
- * submits their email address and the OTP is "dispatched". Auto-dismisses after 5s.
+ * OtpDispatchToast — Slides in from the top of the screen the moment a user
+ * registers or submits credentials and an OTP challenge is dispatched.
  */
-export function OtpDispatchToast({ email, visible, onDismiss }) {
+export function OtpDispatchToast({ email, visible, onDismiss, otpCode, provider }) {
   const [progress, setProgress] = useState(100);
   const [show, setShow] = useState(false);
 
@@ -16,11 +16,10 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
       return;
     }
 
-    // Slight mount delay for the slide-down animation to feel smooth
+    // Slight mount delay for smooth slide-down animation
     const mountTimer = setTimeout(() => setShow(true), 50);
 
-    // Progress bar ticks down over 5 seconds
-    const DURATION = 5000;
+    const DURATION = 6000;
     const TICK = 50;
     let elapsed = 0;
 
@@ -30,7 +29,7 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
       if (elapsed >= DURATION) {
         clearInterval(ticker);
         setShow(false);
-        setTimeout(onDismiss, 300); // wait for slide-up animation
+        setTimeout(onDismiss, 300);
       }
     }, TICK);
 
@@ -49,13 +48,13 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
           show ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
         }`}
       >
-        <div className="relative bg-[#0a1628] border border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="relative bg-[#0a1628] border border-emerald-500/50 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl">
           {/* Top gradient accent */}
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-sky-400 to-emerald-500" />
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-sky-400 to-indigo-500" />
 
           {/* Progress bar */}
           <div
-            className="absolute bottom-0 left-0 h-0.5 bg-emerald-500/60 transition-all duration-50 ease-linear"
+            className="absolute bottom-0 left-0 h-0.5 bg-emerald-500/70 transition-all duration-50 ease-linear"
             style={{ width: `${progress}%` }}
           />
 
@@ -65,7 +64,6 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
               <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shadow-glow-emerald">
                 <Mail className="w-5 h-5 text-emerald-400" />
               </div>
-              {/* Ping dot */}
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
@@ -77,13 +75,23 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
               <div className="flex items-center gap-2 mb-0.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <span className="text-sm font-bold text-slate-100">
-                  OTP Dispatched — Check Your Inbox
+                  OTP Challenge Dispatched
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-1.5 py-0.2 rounded border border-emerald-500/30">
+                  {provider || 'Live Sentinel'}
                 </span>
               </div>
 
-              <p className="text-xs text-slate-300 font-mono truncate mb-1.5">
-                Destination: <span className="text-sky-400 font-semibold">{email}</span>
+              <p className="text-xs text-slate-300 font-mono truncate mb-1">
+                Destination: <span className="text-sky-400 font-semibold">{email || 'your-email@domain.com'}</span>
               </p>
+
+              {otpCode && (
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-xs font-mono text-emerald-300 mb-1.5">
+                  <KeyRound className="w-3 h-3 text-emerald-400" />
+                  <span>Enclave Token: <strong className="text-white tracking-wider">{otpCode}</strong></span>
+                </div>
+              )}
 
               {/* Mail-server metadata strip */}
               <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-500">
@@ -94,12 +102,10 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
                 <span className="text-slate-700">•</span>
                 <span className="flex items-center gap-1">
                   <Wifi className="w-3 h-3 text-slate-600" />
-                  MX: smtp.mailsec.aegis
+                  Resend REST API
                 </span>
                 <span className="text-slate-700">•</span>
-                <span>DKIM: PASS • SPF: PASS</span>
-                <span className="text-slate-700">•</span>
-                <span>Exp: 10 min</span>
+                <span>SPF / DKIM: VALID</span>
               </div>
             </div>
 
@@ -110,6 +116,7 @@ export function OtpDispatchToast({ email, visible, onDismiss }) {
                 setTimeout(onDismiss, 300);
               }}
               className="shrink-0 p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition"
+              title="Dismiss"
             >
               <X className="w-4 h-4" />
             </button>

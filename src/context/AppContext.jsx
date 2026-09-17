@@ -24,13 +24,14 @@ import {
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
-  // Navigation & Gateway Flow State
-  // 'gateway' -> 'otp_verification' -> 'onboarding' -> 'dashboard'
-  const [appFlow, setAppFlow] = useState('gateway');
+  // Navigation Flow State: Opens directly with the Decision Hub
+  const [appFlow, setAppFlow] = useState('record_selection');
   const [pendingNewUserEmail, setPendingNewUserEmail] = useState('');
+  const [pendingUserMetadata, setPendingUserMetadata] = useState(null);
   const [isReturningUser, setIsReturningUser] = useState(true);
   const [activeOtpCode, setActiveOtpCode] = useState('749201');
   const [otpDeliveryStatus, setOtpDeliveryStatus] = useState(null);
+  const [isOtpToastVisible, setIsOtpToastVisible] = useState(false);
 
   // Resend Email Dispatches & Notification Center State
   const [emailDispatches, setEmailDispatches] = useState([
@@ -78,7 +79,7 @@ export function AppProvider({ children }) {
   // Entity and Role Management
   const [entityType, setEntityType] = useState('Business'); // 'Individual' | 'Business' | 'Organization'
   const [userRole, setUserRole] = useState('Admin'); // 'Admin' | 'Operator' | 'Viewer'
-  const [authStatus, setAuthStatus] = useState('unauthenticated'); // 'authenticated' | 'unauthenticated' | 'mfa_pending' | 'session_locked'
+  const [authStatus, setAuthStatus] = useState('authenticated'); // 'authenticated' | 'unauthenticated' | 'mfa_pending' | 'session_locked'
   const [currentUser, setCurrentUser] = useState({
     uuid: 'usr_sec_8491028',
     name: 'Sarah Vance, CISSP',
@@ -555,37 +556,69 @@ export function AppProvider({ children }) {
   }, [addAuditLog]);
 
   // Pathway Handlers (Defined before useEffect so listener can invoke it)
-  const initiateNewUserVerification = useCallback((email) => {
+  const initiateNewUserVerification = useCallback((email, metadata = null) => {
+    const targetEmail = (email || '').trim().toLowerCase();
     // Generate dynamic 6-digit cryptographic verification code
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setActiveOtpCode(generatedOtp);
-    setPendingNewUserEmail(email);
+    setPendingNewUserEmail(targetEmail);
+    if (metadata) {
+      setPendingUserMetadata(metadata);
+    }
     setAppFlow('otp_verification');
-    setOtpDeliveryStatus({ sending: true, success: false, recipient: email });
+    setOtpDeliveryStatus({
+      sending: true,
+      success: false,
+      recipient: targetEmail,
+      otpCode: generatedOtp,
+      isSandbox: true
+    });
+    setIsOtpToastVisible(true);
 
     addAuditLog(
       'Two-Step Multi-Verification OTP Dispatched',
-      `6-digit challenge token dispatched to ${email} for multi-verification.`
+      `6-digit challenge token dispatched to ${targetEmail} for multi-verification.`
     );
 
     // Asynchronously dispatch OTP via Resend API
-    dispatchOtpEmail({ email, otpCode: generatedOtp }).then(res => {
-      console.log('📬 [AegisRecover OTP Challenge] Dispatched to', email, ':', generatedOtp, res);
-      setOtpDeliveryStatus({ sending: false, success: true, recipient: email, provider: res?.provider || 'Resend' });
+    dispatchOtpEmail({ email: targetEmail, otpCode: generatedOtp }).then(res => {
+      console.log('📬 [AegisRecover OTP Challenge] Dispatched to', targetEmail, ':', generatedOtp, res);
+      setOtpDeliveryStatus({
+        sending: false,
+        success: true,
+        recipient: targetEmail,
+        otpCode: generatedOtp,
+        provider: res?.provider || 'Resend Enclave',
+        isSandbox: res?.isSandbox ?? true
+      });
       if (res?.record) {
         setEmailDispatches(prev => [res.record, ...prev]);
       }
     }).catch(err => {
       console.warn('Failed to dispatch OTP email:', err);
-      setOtpDeliveryStatus({ sending: false, success: false, error: err.message, recipient: email });
+      setOtpDeliveryStatus({
+        sending: false,
+        success: false,
+        error: err.message,
+        recipient: targetEmail,
+        otpCode: generatedOtp,
+        isSandbox: true
+      });
     });
   }, [addAuditLog]);
 
   const resendOtpCode = useCallback((email) => {
-    const targetEmail = email || pendingNewUserEmail;
+    const targetEmail = (email || pendingNewUserEmail || '').trim().toLowerCase();
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setActiveOtpCode(generatedOtp);
-    setOtpDeliveryStatus({ sending: true, success: false, recipient: targetEmail });
+    setOtpDeliveryStatus({
+      sending: true,
+      success: false,
+      recipient: targetEmail,
+      otpCode: generatedOtp,
+      isSandbox: true
+    });
+    setIsOtpToastVisible(true);
 
     addAuditLog(
       'OTP Challenge Resent',
@@ -594,22 +627,167 @@ export function AppProvider({ children }) {
 
     return dispatchOtpEmail({ email: targetEmail, otpCode: generatedOtp }).then(res => {
       console.log('📬 [AegisRecover OTP Challenge Resent] To', targetEmail, ':', generatedOtp, res);
-      setOtpDeliveryStatus({ sending: false, success: true, recipient: targetEmail, provider: res?.provider || 'Resend' });
+      setOtpDeliveryStatus({
+        sending: false,
+        success: true,
+        recipient: targetEmail,
+        otpCode: generatedOtp,
+        provider: res?.provider || 'Resend Enclave',
+        isSandbox: res?.isSandbox ?? true
+      });
       if (res?.record) {
         setEmailDispatches(prev => [res.record, ...prev]);
       }
-      return { success: true, otpCode: generatedOtp };
+      return { success: true, otpCode: generatedOtp, recipient: targetEmail };
     }).catch(err => {
       console.warn('Failed to resend OTP email:', err);
-      setOtpDeliveryStatus({ sending: false, success: false, error: err.message, recipient: targetEmail });
-      return { success: false, error: err.message, otpCode: generatedOtp };
+      setOtpDeliveryStatus({
+        sending: false,
+        success: false,
+        error: err.message,
+        recipient: targetEmail,
+        otpCode: generatedOtp,
+        isSandbox: true
+      });
+      return { success: false, error: err.message, otpCode: generatedOtp, recipient: targetEmail };
     });
   }, [pendingNewUserEmail, addAuditLog]);
+
+  // Allow updating the target email address on the fly (e.g. fixing typos)
+  const updatePendingEmailAndResend = useCallback((newEmail) => {
+    const cleaned = (newEmail || '').trim().toLowerCase();
+    if (!cleaned) return;
+    setPendingNewUserEmail(cleaned);
+    return resendOtpCode(cleaned);
+  }, [resendOtpCode]);
+
+  // Direct Google Identity Authentication Handler
+  const authenticateWithGoogleUser = useCallback((googleProfile) => {
+    const email = (googleProfile.email || '').trim().toLowerCase();
+    const name = googleProfile.name || email.split('@')[0] || 'Google User';
+    const avatar = googleProfile.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=250';
+    const entity = googleProfile.entityType || 'Business';
+    const uuid = googleProfile.id || googleProfile.uuid || `usr_g_${Date.now().toString(36)}`;
+
+    const userObj = {
+      id: uuid,
+      uuid,
+      email,
+      name,
+      avatar,
+      entityType: entity,
+      entityName: `${name}'s Operations`,
+      role: 'Admin',
+      authProvider: 'google'
+    };
+
+    // Persist in local storage
+    try {
+      const existingRaw = localStorage.getItem('aegis_registered_users');
+      const usersList = existingRaw ? JSON.parse(existingRaw) : [];
+      const idx = usersList.findIndex(u => u.email.toLowerCase() === email);
+      if (idx >= 0) {
+        usersList[idx] = { ...usersList[idx], ...userObj };
+      } else {
+        usersList.push(userObj);
+      }
+      localStorage.setItem('aegis_registered_users', JSON.stringify(usersList));
+    } catch (e) {}
+
+    addAuditLog('Google OAuth Authenticated', `Zero-trust identity certified via Google Identity for ${email}`);
+    loginReturningUser(userObj);
+  }, [addAuditLog, loginReturningUser]);
+
+  // Register New Account with Dynamic Email & Password
+  const registerNewAccount = useCallback(({ email, password, name, entityType = 'Business' }) => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const userName = name?.trim() || normalizedEmail.split('@')[0];
+    const uuid = `usr_reg_${Date.now().toString(36)}`;
+
+    let usersList = [];
+    try {
+      const existingRaw = localStorage.getItem('aegis_registered_users');
+      usersList = existingRaw ? JSON.parse(existingRaw) : [];
+    } catch (e) {
+      usersList = [];
+    }
+
+    const existingIndex = usersList.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+    const newUserRecord = {
+      id: uuid,
+      uuid,
+      email: normalizedEmail,
+      password: password || 'SecurePass123!',
+      name: userName,
+      entityType: entityType || 'Business',
+      entityName: `${userName}'s Operations`,
+      role: 'Admin',
+      avatar: entityType === 'Individual'
+        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+        : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250',
+      createdAt: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      usersList[existingIndex] = { ...usersList[existingIndex], ...newUserRecord };
+    } else {
+      usersList.push(newUserRecord);
+    }
+    localStorage.setItem('aegis_registered_users', JSON.stringify(usersList));
+
+    addAuditLog('New Account Registered', `Registered credentials for ${normalizedEmail} (${entityType}). Initiating OTP challenge.`);
+    initiateNewUserVerification(normalizedEmail, newUserRecord);
+    return { success: true, user: newUserRecord };
+  }, [addAuditLog, initiateNewUserVerification]);
+
+  // Login with Email & Password Credentials
+  const loginWithCredentials = useCallback(({ email, password }) => {
+    const normalizedEmail = (email || '').trim().toLowerCase();
+
+    // 1. Check known returning fixtures
+    const matchedKnown = KNOWN_RETURNING_USERS.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (matchedKnown) {
+      initiateNewUserVerification(normalizedEmail, matchedKnown);
+      return { success: true, user: matchedKnown, isKnown: true };
+    }
+
+    // 2. Check locally registered users in localStorage
+    let usersList = [];
+    try {
+      const existingRaw = localStorage.getItem('aegis_registered_users');
+      usersList = existingRaw ? JSON.parse(existingRaw) : [];
+    } catch (e) {
+      usersList = [];
+    }
+    const matchedRegistered = usersList.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (matchedRegistered) {
+      if (password && matchedRegistered.password && matchedRegistered.password !== password) {
+        return { success: false, error: 'Incorrect password. Please verify your credentials.' };
+      }
+      initiateNewUserVerification(normalizedEmail, matchedRegistered);
+      return { success: true, user: matchedRegistered, isKnown: true };
+    }
+
+    // 3. If dynamic new email provided with password, auto-provision profile and challenge OTP
+    const dynamicUser = {
+      uuid: `usr_${Date.now().toString(36)}`,
+      email: normalizedEmail,
+      name: normalizedEmail.split('@')[0],
+      entityType: 'Business',
+      entityName: `${normalizedEmail.split('@')[0]}'s Workspace`,
+      password: password || 'SecurePass123!',
+      role: 'Admin'
+    };
+    initiateNewUserVerification(normalizedEmail, dynamicUser);
+    return { success: true, user: dynamicUser, isNew: true };
+  }, [initiateNewUserVerification]);
 
   // Ref guards to avoid re-triggering session checks on state/callback changes
   const hasMountedSessionCheckRef = useRef(false);
   const initiateNewUserVerificationRef = useRef(initiateNewUserVerification);
   initiateNewUserVerificationRef.current = initiateNewUserVerification;
+  const authenticateWithGoogleUserRef = useRef(authenticateWithGoogleUser);
+  authenticateWithGoogleUserRef.current = authenticateWithGoogleUser;
   const addAuditLogRef = useRef(addAuditLog);
   addAuditLogRef.current = addAuditLog;
   const authStatusRef = useRef(authStatus);
@@ -627,14 +805,34 @@ export function AppProvider({ children }) {
                             window.location.search.includes('code=');
 
     if (isOAuthRedirect) {
-      // If returning from Google OAuth redirect, route to mandatory Multi-Verification (OTP)!
+      // Clean URL hash so refresh doesn't loop
+      setTimeout(() => {
+        try {
+          window.history.replaceState(null, '', window.location.pathname);
+        } catch (e) {}
+      }, 350);
+
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.email) {
+          const googleUser = session.user;
+          const userEmail = googleUser.email.toLowerCase();
+          const userName = googleUser.user_metadata?.full_name || 
+                           googleUser.user_metadata?.name || 
+                           userEmail.split('@')[0];
+          const userAvatar = googleUser.user_metadata?.avatar_url;
+
           addAuditLogRef.current(
-            'OAuth Callback Initiated',
-            `Google OAuth token received for ${session.user.email}. Routing to mandatory multi-verification OTP challenge.`
+            'Google OAuth Callback Verified',
+            `Google OAuth token verified for ${userEmail}. Routing directly to Decision Hub.`
           );
-          initiateNewUserVerificationRef.current(session.user.email);
+
+          authenticateWithGoogleUserRef.current({
+            id: googleUser.id,
+            email: userEmail,
+            name: userName,
+            avatar: userAvatar,
+            entityType: 'Business'
+          });
         }
       }).catch(err => {
         console.warn('OAuth callback session evaluation notice:', err);
@@ -644,9 +842,21 @@ export function AppProvider({ children }) {
     try {
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session?.user?.email) {
-          // If we are not already authenticated or verified, route to multi-verification
           if (authStatusRef.current !== 'authenticated') {
-            initiateNewUserVerificationRef.current(session.user.email);
+            const googleUser = session.user;
+            const userEmail = googleUser.email.toLowerCase();
+            const userName = googleUser.user_metadata?.full_name || 
+                             googleUser.user_metadata?.name || 
+                             userEmail.split('@')[0];
+            const userAvatar = googleUser.user_metadata?.avatar_url;
+
+            authenticateWithGoogleUserRef.current({
+              id: googleUser.id,
+              email: userEmail,
+              name: userName,
+              avatar: userAvatar,
+              entityType: 'Business'
+            });
           }
         }
       });
@@ -663,7 +873,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const completeOtpVerification = (verifiedEmail) => {
-    const targetEmail = verifiedEmail || pendingNewUserEmail;
+    const targetEmail = (verifiedEmail || pendingNewUserEmail || '').trim().toLowerCase();
     
     // IMMEDIATE SYNCHRONOUS TRANSITION TO DECISION HUB (No network blocking)
     setAuthStatus('authenticated');
@@ -673,6 +883,16 @@ export function AppProvider({ children }) {
       'Two-Step Verification Succeeded',
       `Identity verified for ${targetEmail}. User registered & authenticated. Routed to Decision Hub (Record Selection).`
     );
+
+    // Look for pending user metadata or localStorage registered profile
+    let localProfile = pendingUserMetadata;
+    if (!localProfile) {
+      try {
+        const existingRaw = localStorage.getItem('aegis_registered_users');
+        const list = existingRaw ? JSON.parse(existingRaw) : [];
+        localProfile = list.find(u => u.email.toLowerCase() === targetEmail);
+      } catch (e) {}
+    }
 
     // Asynchronous background status check & telemetry dispatch
     checkUserStatus(targetEmail, KNOWN_RETURNING_USERS).then(userCheck => {
@@ -688,6 +908,20 @@ export function AppProvider({ children }) {
         });
         setEntityType(userObj.entityType || 'Business');
         setUserRole(userObj.role || 'Admin');
+        setIsReturningUser(true);
+      } else if (localProfile) {
+        const userUuid = localProfile.uuid || localProfile.id || `usr_${Date.now().toString(36)}`;
+        setCurrentUser({
+          uuid: userUuid,
+          name: localProfile.name || targetEmail.split('@')[0],
+          email: targetEmail,
+          phone: localProfile.phone || (localProfile.entityType === 'Individual' ? '+91 98765-43210' : '+1 (415) 890-4821'),
+          avatar: localProfile.avatar || (localProfile.entityType === 'Individual' 
+            ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250' 
+            : 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=250')
+        });
+        setEntityType(localProfile.entityType || 'Business');
+        setUserRole(localProfile.role || 'Admin');
         setIsReturningUser(true);
       } else {
         const newUuid = `usr_${Date.now().toString(36)}`;
@@ -706,8 +940,8 @@ export function AppProvider({ children }) {
       // Background notification
       dispatchVerificationSuccessNotification({
         email: targetEmail,
-        name: userCheck?.user?.name || targetEmail.split('@')[0],
-        entityType: userCheck?.user?.entityType || entityType,
+        name: userCheck?.user?.name || localProfile?.name || targetEmail.split('@')[0],
+        entityType: userCheck?.user?.entityType || localProfile?.entityType || entityType,
         verifiedTimestamp: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
       }).then(res => {
         if (res?.record) {
@@ -720,12 +954,12 @@ export function AppProvider({ children }) {
   };
 
   const logoutToGateway = useCallback(() => {
-    setAuthStatus('unauthenticated');
-    setAppFlow('gateway');
+    setAuthStatus('authenticated');
+    setAppFlow('record_selection');
     setSelectedRecordId(null);
     setSelectedRecordForDrillDown(null);
     setCurrentTab('dashboard');
-    addAuditLog('Session Terminated', 'User logged out to Gateway Login. Mandatory authentication required.');
+    addAuditLog('Decision Hub Returned', 'Returned to Decision Hub. Record context reset.');
   }, [addAuditLog]);
 
   const completeNewUserOnboarding = (profileData) => {
@@ -1961,11 +2195,19 @@ export function AppProvider({ children }) {
         navigateToTab,
         pendingNewUserEmail,
         setPendingNewUserEmail,
+        pendingUserMetadata,
+        setPendingUserMetadata,
+        isOtpToastVisible,
+        setIsOtpToastVisible,
         isReturningUser,
         setIsReturningUser,
         loginReturningUser,
         initiateNewUserVerification,
         resendOtpCode,
+        updatePendingEmailAndResend,
+        registerNewAccount,
+        loginWithCredentials,
+        authenticateWithGoogleUser,
         activeOtpCode,
         otpDeliveryStatus,
         completeOtpVerification,

@@ -62,7 +62,13 @@ async function callResendApi({ from, to, subject, html }) {
 
     const data = await res.json();
     if (res.ok) {
-      return { success: true, id: data.id, provider: 'Resend API (Live)' };
+      return {
+        success: true,
+        id: data.id,
+        provider: 'Resend API (Live)',
+        recipient: primaryRecipient[0],
+        isSandbox: false
+      };
     }
 
     // In Resend free sandbox tier with 'onboarding@resend.dev':
@@ -91,7 +97,9 @@ async function callResendApi({ from, to, subject, html }) {
             success: true,
             id: retryData.id,
             provider: 'Resend API (Live)',
-            note: `Delivered to verified owner (${fallbackRecipient}) under Resend sandbox rules.`
+            recipient: primaryRecipient[0],
+            isSandbox: true,
+            note: `Delivered to verified sandbox owner (${fallbackRecipient}) under Resend sandbox rules.`
           };
         }
       } catch (retryErr) {
@@ -103,6 +111,8 @@ async function callResendApi({ from, to, subject, html }) {
       success: true,
       id: `resend_sim_${Date.now().toString(36)}`,
       provider: 'Resend Sandbox (Captured)',
+      recipient: primaryRecipient[0],
+      isSandbox: true,
       note: data.message || 'Captured in sandbox mode'
     };
   } catch (err) {
@@ -110,6 +120,8 @@ async function callResendApi({ from, to, subject, html }) {
       success: true,
       id: `resend_local_${Date.now().toString(36)}`,
       provider: 'Resend Enclave (Fallback)',
+      recipient: primaryRecipient[0],
+      isSandbox: true,
       note: err.message
     };
   }
@@ -277,8 +289,9 @@ export async function handleApiRoute(url, body) {
   if (url === '/api/notifications/send-otp') {
     const { email, otpCode } = body;
     const recipient = email || 'delivered@resend.dev';
-    const subject = `[AegisRecover] Your One-Time Password: ${otpCode}`;
-    const html = generateOtpEmailHtml({ email: recipient, otpCode });
+    const finalOtpCode = otpCode || Math.floor(100000 + Math.random() * 900000).toString();
+    const subject = `[AegisRecover] Your One-Time Password: ${finalOtpCode}`;
+    const html = generateOtpEmailHtml({ email: recipient, otpCode: finalOtpCode });
 
     const result = await callResendApi({ to: recipient, subject, html });
     const record = {
@@ -292,7 +305,14 @@ export async function handleApiRoute(url, body) {
     };
     dispatchHistory.unshift(record);
 
-    return { ...result, record, html, otpCode };
+    return {
+      ...result,
+      record,
+      html,
+      otpCode: finalOtpCode,
+      recipient,
+      isSandbox: result.isSandbox || result.provider?.includes('Sandbox') || false
+    };
   }
 
   // 6. Automated SLA Penalty Assessment Notification Email

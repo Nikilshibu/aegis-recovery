@@ -92,7 +92,7 @@ export function RecordDecisionHub() {
               </div>
               <div className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
                 <CheckCircle2 className="w-2.5 h-2.5" />
-                <span>OTP Verified</span>
+                <span>Active Enclave</span>
               </div>
             </div>
           </div>
@@ -100,10 +100,10 @@ export function RecordDecisionHub() {
           <button
             type="button"
             onClick={logoutToGateway}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 transition"
-            title="Sign Out"
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-300 transition"
+            title="Reset Context / Reload Hub"
           >
-            <LogOut className="w-4 h-4" />
+            <Sparkles className="w-4 h-4" />
           </button>
         </div>
       </header>

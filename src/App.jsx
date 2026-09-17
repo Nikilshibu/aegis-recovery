@@ -14,6 +14,7 @@ import { PaymentsBillingTerminal } from './components/payments/PaymentsBillingTe
 import { AiCustomerSupportCenter } from './components/support/AiCustomerSupportCenter';
 import { GatewayLogin } from './components/auth/GatewayLogin';
 import { EmailOtpVerificationModal } from './components/auth/EmailOtpVerificationModal';
+import { OtpDispatchToast } from './components/auth/OtpDispatchToast';
 import { AuthModal } from './components/auth/AuthModal';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
 import { OutreachPanel } from './components/dashboard/OutreachPanel';
@@ -73,32 +74,18 @@ export function App() {
     recordSuccessAlert,
     setRecordSuccessAlert,
     autoMailToast,
-    setAutoMailToast
+    setAutoMailToast,
+    pendingNewUserEmail,
+    activeOtpCode,
+    otpDeliveryStatus,
+    isOtpToastVisible,
+    setIsOtpToastVisible
   } = useApp();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // 1. Gateway Login Screen (NO voice assistant on login page)
-  if (appFlow === 'gateway') {
-    return (
-      <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans relative">
-        <GatewayLogin />
-      </div>
-    );
-  }
-
-  // 2. OTP Verification Barrier (NO voice assistant on verification)
-  if (appFlow === 'otp_verification') {
-    return (
-      <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans relative">
-        <GatewayLogin />
-        <EmailOtpVerificationModal />
-      </div>
-    );
-  }
-
-  // 3. Decision Dashboard (NO SIDEBAR ON EITHER SIDE, NO login voice overlay)
-  if (appFlow === 'record_selection' || appFlow === 'decision_hub') {
+  // 1. Direct Entrypoint: Opens directly with the Decision Hub (Login and Multi-Step Verification removed)
+  if (appFlow === 'record_selection' || appFlow === 'decision_hub' || appFlow === 'gateway' || appFlow === 'otp_verification') {
     return (
       <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans relative">
         <RecordDecisionHub />
@@ -326,6 +313,14 @@ export function App() {
       />
       {/* Voice Assistant ONLY mounted on AI Customer Support tab */}
       {currentTab === 'support' && <GlobalVoiceSentinelModal />}
+
+      <OtpDispatchToast
+        email={pendingNewUserEmail}
+        otpCode={activeOtpCode}
+        provider={otpDeliveryStatus?.provider}
+        visible={isOtpToastVisible}
+        onDismiss={() => setIsOtpToastVisible(false)}
+      />
 
     </div>
   );
